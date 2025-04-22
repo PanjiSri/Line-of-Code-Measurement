@@ -1,0 +1,34 @@
+services:
+  spanner-emulator:
+    image: gcr.io/cloud-spanner-emulator/emulator
+    container_name: spanner-emulator-compose
+    ports:
+      - "9010:9010"    
+      - "9020:9020"     
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: note-backend
+    container_name: note-backend-compose
+    ports:
+      - "8000:8000"
+    environment:
+      - SPANNER_EMULATOR_HOST=spanner-emulator:9010
+      - SPANNER_PROJECT_ID=local-project
+      - SPANNER_INSTANCE=local-instance
+      - SPANNER_DATABASE=notes
+    depends_on:
+      - spanner-emulator
+    restart: unless-stopped
+
+  frontend:
+    image: note-frontend
+    container_name: note-frontend-compose
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped

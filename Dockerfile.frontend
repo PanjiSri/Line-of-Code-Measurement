@@ -1,0 +1,13 @@
+FROM node:20-alpine AS build-stage
+WORKDIR /app
+WORKDIR /app/packages/client
+COPY packages/client/package.json ./package.json
+COPY yarn.lock ./yarn.lock
+RUN yarn install --frozen-lockfile
+COPY packages/client/ ./
+RUN sed -i 's/"build": "tsc && vite build"/"build": "vite build"/' package.json
+RUN yarn build
+FROM lipanski/docker-static-website:latest AS release-stage
+COPY --from=build-stage /app/packages/client/dist/ .
+EXPOSE 3000
+CMD ["/busybox-httpd", "-f", "-v", "-p", "3000", "-c", "httpd.conf"]
