@@ -5,10 +5,7 @@ services:
     ports:
       - "8000:8000"
     restart: unless-stopped
-    depends_on:           
-      - db
-    environment:
-      - DATABASE_URL=postgresql://note:note@db:5432/note?schema=public
+
   frontend:
     image: note-frontend
     container_name: note-frontend-compose
@@ -17,15 +14,3 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
-  db:
-    image: postgres:16-alpine
-    container_name: note-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: note
-      POSTGRES_USER: note
-      POSTGRES_PASSWORD: note
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-volumes:
-  postgres-data:

@@ -1,13 +1,43 @@
-FROM node:20-alpine AS build-stage
+FROM node:20-alpine AS build
 WORKDIR /app
+COPY packages/client/ ./packages/client/
 WORKDIR /app/packages/client
-COPY packages/client/package.json ./package.json
-COPY yarn.lock ./yarn.lock
-RUN yarn install --frozen-lockfile
-COPY packages/client/ ./
-RUN sed -i 's/"build": "tsc && vite build"/"build": "vite build"/' package.json
+RUN yarn install
+RUN sed -i 's/tsc && vite build/vite build --emptyOutDir/' package.json
 RUN yarn build
-FROM lipanski/docker-static-website:latest AS release-stage
-COPY --from=build-stage /app/packages/client/dist/ .
+FROM nginx:stable-alpine                    
+COPY --from=build /app/packages/client/dist /usr/share/nginx/html
+COPY <<'EOF' /etc/nginx/nginx.conf
+events {}
+
+http {
+  include       /etc/nginx/mime.types;
+  default_type  application/octet-stream;
+  
+  map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+  }
+
+  server {
+    listen 3000;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+      try_files $uri $uri/ /index.html;
+    }
+
+    location /api/trpc/ {
+      proxy_pass         http://backend:8000/api/trpc/;
+      proxy_http_version 1.1;
+      proxy_set_header   Host $host;
+      proxy_set_header   Upgrade $http_upgrade;
+      proxy_set_header   Connection $connection_upgrade;
+    }
+  }
+}
+EOF
 EXPOSE 3000
-CMD ["/busybox-httpd", "-f", "-v", "-p", "3000", "-c", "httpd.conf"]

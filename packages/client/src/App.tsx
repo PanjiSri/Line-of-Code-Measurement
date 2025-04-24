@@ -66,7 +66,7 @@ export default function App() {
     trpc.createClient({
       links: [
         httpBatchLink({
-          url: "http://localhost:8000/api/trpc",
+          url: "/api/trpc",
           fetch: async (input, init?) => {
             const fetch = getFetch();
             return fetch(input, {
