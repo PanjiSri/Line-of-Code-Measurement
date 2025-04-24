@@ -1,6 +1,6 @@
+import { Prisma } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
-import { notesTable, runQuery } from "./spannerClient";
-import crypto from "crypto";
+import { prisma } from "./app";
 import {
   CreateNoteInput,
   FilterQueryInput,
@@ -8,36 +8,38 @@ import {
   UpdateNoteInput,
 } from "./note.schema";
 
-const nowISO = () => new Date().toISOString();
-
 export const createNoteController = async ({
   input,
 }: {
   input: CreateNoteInput;
 }) => {
-  const row = {
-    id: crypto.randomUUID(),
-    title: input.title,
-    content: input.content,
-    category: input.category ?? null,
-    published: input.published ?? false,
-    createdAt: nowISO(),
-    updatedAt: nowISO(),
-  };
-
   try {
-    await notesTable.insert([row]);
-  } catch (e: any) {
-    if (e.code === 6) {
-      throw new TRPCError({
-        code: "CONFLICT",
-        message: "Note with that title already exists",
-      });
-    }
-    throw e;
-  }
+    const note = await prisma.note.create({
+      data: {
+        title: input.title,
+        content: input.content,
+        category: input.category,
+        published: input.published,
+      },
+    });
 
-  return { status: "success", data: { note: row } };
+    return {
+      status: "success",
+      data: {
+        note,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Note with that title already exists",
+        });
+      }
+    }
+    throw error;
+  }
 };
 
 export const updateNoteController = async ({
@@ -47,21 +49,27 @@ export const updateNoteController = async ({
   paramsInput: ParamsInput;
   input: UpdateNoteInput["body"];
 }) => {
-  const newRow = { ...input, updatedAt: nowISO(), id: paramsInput.noteId };
-
   try {
-    await notesTable.update([newRow]);
-  } catch (e: any) {
-    if (e.code === 6) {
-      throw new TRPCError({
-        code: "CONFLICT",
-        message: "Note with that title already exists",
-      });
-    }
-    throw e;
-  }
+    const updatedNote = await prisma.note.update({
+      where: { id: paramsInput.noteId },
+      data: input,
+    });
 
-  return { status: "success", note: newRow };
+    return {
+      status: "success",
+      note: updatedNote,
+    };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2025") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Note with that title already exists",
+        });
+      }
+    }
+    throw error;
+  }
 };
 
 export const findNoteController = async ({
@@ -69,16 +77,25 @@ export const findNoteController = async ({
 }: {
   paramsInput: ParamsInput;
 }) => {
-  const [rows] = await runQuery({
-    sql: "SELECT * FROM notes WHERE id=@id",
-    params: { id: paramsInput.noteId },
-  });
+  try {
+    const note = await prisma.note.findFirst({
+      where: { id: paramsInput.noteId },
+    });
 
-  const note = rows[0]?.toJSON?.();
-  if (!note) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Note not found" });
+    if (!note) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Note with that ID not found",
+      });
+    }
+
+    return {
+      status: "success",
+      note,
+    };
+  } catch (error) {
+    throw error;
   }
-  return { status: "success", note };
 };
 
 export const findAllNotesController = async ({
@@ -86,20 +103,21 @@ export const findAllNotesController = async ({
 }: {
   filterQuery: FilterQueryInput;
 }) => {
-  const page = filterQuery.page || 1;
-  const limit = filterQuery.limit || 10;
-  const offset = (page - 1) * limit;
+  try {
+    const page = filterQuery.page || 1;
+    const limit = filterQuery.limit || 10;
+    const skip = (page - 1) * limit;
 
-  const [rows] = await runQuery({
-    sql: "SELECT * FROM notes LIMIT @lim OFFSET @off",
-    params: { lim: limit, off: offset },
-  });
+    const notes = await prisma.note.findMany({ skip, take: limit });
 
-  return {
-    status: "success",
-    results: rows.length,
-    notes: rows.map((r) => r.toJSON()),
-  };
+    return {
+      status: "success",
+      results: notes.length,
+      notes,
+    };
+  } catch (error) {
+    throw error;
+  }
 };
 
 export const deleteNoteController = async ({
@@ -107,6 +125,21 @@ export const deleteNoteController = async ({
 }: {
   paramsInput: ParamsInput;
 }) => {
-  await notesTable.deleteRows([paramsInput.noteId]);
-  return { status: "success" };
+  try {
+    await prisma.note.delete({ where: { id: paramsInput.noteId } });
+
+    return {
+      status: "success",
+    };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2025") {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Note with that ID not found",
+        });
+      }
+    }
+    throw error;
+  }
 };
