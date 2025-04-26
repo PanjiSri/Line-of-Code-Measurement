@@ -1,11 +1,12 @@
 FROM node:21-alpine3.18
 
+RUN mkdir -p /app/
 WORKDIR /app
+COPY packages/server/package.json /app/package.json
+RUN yarn install         
 
-COPY packages/server/package.json yarn.lock ./
-RUN yarn install --production
-
-COPY packages/server/ ./
+COPY packages/server/src/ ./src
+COPY packages/server/.env ./.env
 
 EXPOSE 8000
 CMD ["yarn", "start"]

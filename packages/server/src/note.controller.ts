@@ -10,11 +10,7 @@ import {
 
 const nowISO = () => new Date().toISOString();
 
-export const createNoteController = async ({
-  input,
-}: {
-  input: CreateNoteInput;
-}) => {
+export const createNoteController = async ({ input }: { input: CreateNoteInput }) => {
   const row = {
     id: crypto.randomUUID(),
     title: input.title,
@@ -28,11 +24,8 @@ export const createNoteController = async ({
   try {
     await notesTable.insert([row]);
   } catch (e: any) {
-    if (e.code === 6) {
-      throw new TRPCError({
-        code: "CONFLICT",
-        message: "Note with that title already exists",
-      });
+    if (e.code === 6) {   
+      throw new TRPCError({ code: "CONFLICT", message: "Note with that title already exists" });
     }
     throw e;
   }
@@ -48,65 +41,40 @@ export const updateNoteController = async ({
   input: UpdateNoteInput["body"];
 }) => {
   const newRow = { ...input, updatedAt: nowISO(), id: paramsInput.noteId };
-
   try {
     await notesTable.update([newRow]);
   } catch (e: any) {
     if (e.code === 6) {
-      throw new TRPCError({
-        code: "CONFLICT",
-        message: "Note with that title already exists",
-      });
+      throw new TRPCError({ code: "CONFLICT", message: "Note with that title already exists" });
     }
     throw e;
   }
-
   return { status: "success", note: newRow };
 };
 
-export const findNoteController = async ({
-  paramsInput,
-}: {
-  paramsInput: ParamsInput;
-}) => {
+export const findNoteController = async ({ paramsInput }: { paramsInput: ParamsInput }) => {
   const [rows] = await runQuery({
     sql: "SELECT * FROM notes WHERE id=@id",
     params: { id: paramsInput.noteId },
   });
-
   const note = rows[0]?.toJSON?.();
-  if (!note) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Note not found" });
-  }
+  if (!note) throw new TRPCError({ code: "NOT_FOUND", message: "Note not found" });
   return { status: "success", note };
 };
 
-export const findAllNotesController = async ({
-  filterQuery,
-}: {
-  filterQuery: FilterQueryInput;
-}) => {
-  const page = filterQuery.page || 1;
-  const limit = filterQuery.limit || 10;
+export const findAllNotesController = async ({ filterQuery }: { filterQuery: FilterQueryInput }) => {
+  const page   = filterQuery.page  || 1;
+  const limit  = filterQuery.limit || 10;
   const offset = (page - 1) * limit;
 
   const [rows] = await runQuery({
     sql: "SELECT * FROM notes LIMIT @lim OFFSET @off",
     params: { lim: limit, off: offset },
   });
-
-  return {
-    status: "success",
-    results: rows.length,
-    notes: rows.map((r) => r.toJSON()),
-  };
+  return { status: "success", results: rows.length, notes: rows.map(r => r.toJSON()) };
 };
 
-export const deleteNoteController = async ({
-  paramsInput,
-}: {
-  paramsInput: ParamsInput;
-}) => {
+export const deleteNoteController = async ({ paramsInput }: { paramsInput: ParamsInput }) => {
   await notesTable.deleteRows([paramsInput.noteId]);
   return { status: "success" };
 };

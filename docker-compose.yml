@@ -1,10 +1,9 @@
 services:
   spanner-emulator:
     image: gcr.io/cloud-spanner-emulator/emulator
-    container_name: spanner-emulator-compose
     ports:
-      - "9010:9010"    
-      - "9020:9020"     
+      - "9010:9010"     
+      - "9020:9020"   
     restart: unless-stopped
 
   backend:
@@ -24,7 +23,7 @@ services:
       - spanner-emulator
     restart: unless-stopped
 
-  frontend:
+  frontend:           
     image: note-frontend
     container_name: note-frontend-compose
     ports:
