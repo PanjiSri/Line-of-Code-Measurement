@@ -1,0 +1,19 @@
+---
+name: note
+components:
+   - backend:
+      image: note-backend
+      expose: 8000
+      stateful: true
+      environments:
+        - DATABASE_URL: file:/app/data/dev.db
+   - frontend:
+      image: note-frontend
+      expose: 3000
+      port: 3000
+      entry: true
+      environments:
+        - BACKEND_HOST: localhost:8000   
+deterministic: false
+state: backend:/app/data/
+consistency: causal  

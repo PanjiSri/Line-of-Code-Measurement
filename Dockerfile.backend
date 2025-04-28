@@ -1,22 +1,15 @@
-FROM node:21-alpine3.18 AS builder
-WORKDIR /app
-COPY packages/server/package.json yarn.lock ./
-RUN yarn install
-COPY packages/server/ .
-RUN npx prisma generate --schema ./prisma/schema.prisma && \
-    npx prisma db push   --schema ./prisma/schema.prisma --accept-data-loss && \
-    mv prisma/dev.db /tmp/dev.db                           
 FROM node:21-alpine3.18
+RUN mkdir -p /app/data/
+RUN mkdir -p /app/
 WORKDIR /app
-ENV NODE_ENV=production
-COPY packages/server/package.json yarn.lock ./
-RUN yarn install --production=false
-COPY packages/server/ .
-COPY --from=builder /app/node_modules/.prisma   node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma   node_modules/@prisma
-COPY --from=builder /tmp/dev.db                 /app/dev-template.db
-RUN mkdir -p /app/prisma && chown -R node:node /app
-USER node
-ENV DATABASE_URL=file:/app/prisma/dev.db
+COPY packages/server/package.json /app/package.json
+RUN yarn install
+
+COPY packages/server/src/ ./src
+COPY packages/server/prisma/schema.prisma ./prisma/schema.prisma
+COPY packages/server/.env ./.env
+
+
+
 EXPOSE 8000
-CMD sh -c 'if [ ! -f /app/prisma/dev.db ]; then cp /app/dev-template.db /app/prisma/dev.db; fi; yarn start'
+CMD ["sh", "-c", "yarn db:migrate && yarn db:push && yarn start"]
